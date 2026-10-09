@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-
+import IncomingInvites from "./IncomingInvites";
+<IncomingInvites />
 /* ---------- Helpers ---------- */
 function getInitials(name) {
   if (!name) return "CL";

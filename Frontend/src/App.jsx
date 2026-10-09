@@ -1,6 +1,12 @@
 import Navbar from "./components/Navbar";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
+import CollegeCompaniesPage from "./pages/college/CompaniesPage";
 
+import AptitudeBuilderPage from "./pages/company/AptitudeBuilderPage";
+
+import AptitudeListPage from "./pages/student/AptitudeListPage";
+import AptitudeRunnerPage from "./pages/student/AptitudeRunnerPage";
+import StudentInterviewsPage from "./pages/student/InterviewsPage";
 import Login from "./pages/auth/Login";
 import RegisterChoice from "./pages/auth/RegisterChoice";
 import CollegeRegister from "./pages/college/CollegeRegister";
@@ -92,6 +98,10 @@ function App() {
 
         {/* ---------- Company Dashboard ---------- */}
         <Route path="/company" element={<CompanyDashboardLayout />}>
+          <Route
+    path="applications/:jobId/aptitude"
+    element={<AptitudeBuilderPage />}
+/>
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<CompanyDashboard />} />
           <Route path="employees" element={<EmployeesPage />} />
@@ -109,6 +119,7 @@ function App() {
         {/* ---------- College Dashboard ---------- */}
 
         <Route path="/college" element={<CollegeDashboardLayout />}>
+          <Route path="companies" element={<CollegeCompaniesPage />} />
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<CollegeDashboard />} />
           <Route path="mentors" element={<MentorsPage />} />
@@ -133,7 +144,20 @@ function App() {
           <Route path="applications" element={<StudentApplicationsPage />} />
           <Route path="mentor-approved" element={<StudentMentorApprovedPage />} />
           <Route path="profile" element={<ProfilePage />} />
-          
+          <Route
+    path="aptitude"
+    element={<AptitudeListPage />}
+/>
+
+<Route
+    path="aptitude/:testId"
+    element={<AptitudeRunnerPage />}
+/>
+
+<Route
+    path="interviews"
+    element={<StudentInterviewsPage />}
+/>
           {/* 👇 THIS NOW POINTS TO THE STUDENT'S DETAIL PAGE */}
           <Route path="job/:jobId" element={<StudentJobDetailsPage />} />
         </Route>

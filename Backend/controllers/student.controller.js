@@ -790,7 +790,11 @@ const getJobsList = asyncHandler(async (req, res) => {
       studentId: student.id,
       ...(filter === "pending" && { status: "pending" }),
       ...(filter === "rejected" && { status: "rejected" }),
-      ...(filter === "shortlisted" && { status: "shortlisted" }),
+      ...filter === "shortlisted" && {
+    status: {
+        in: ["shortlisted", "aptitude", "interview"]
+    }
+},
       ...(filter === "hired" && { status: "hired" }),
       ...(filter === "mentor_approval_pending" && {
         mentorApproval: "pending",
@@ -1228,7 +1232,13 @@ const getDashboardOverview = asyncHandler(async (req, res) => {
     rejected = 0;
   appCounts.forEach((group) => {
     if (group.status === "pending") pending = group._count;
-    if (group.status === "shortlisted") shortlisted = group._count;
+    if (
+      group.status === "shortlisted" ||
+      group.status === "aptitude" ||
+      group.status === "interview"
+    ) {
+      shortlisted += group._count;
+    }
     if (group.status === "hired") hired = group._count;
     if (group.status === "rejected") rejected = group._count;
   });

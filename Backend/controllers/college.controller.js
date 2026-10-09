@@ -141,162 +141,6 @@ const createMentor = asyncHandler(async (req, res) => {
 });
 
 
-const collabDecision = asyncHandler(async (req, res) => {
-  const { companyId } = req.params;
-  const { result } = req.body;
-
-  if (!companyId || !result) {
-    log.info("collabDecision validation failed", {
-      requestId: req.requestId,
-      userId: req.user.id,
-    });
-    throw new ApiError(403, "please provide all details");
-  }
-
-  if (!["1", "0"].includes(result)) {
-    log.info("collabDecision invalid result value", {
-      requestId: req.requestId,
-      result,
-    });
-    throw new ApiError(403, "provide proper result value");
-  }
-
-  const nextStatus = result === "1" ? "accepted" : "rejected";
-
-  log.info("collabDecision request received", {
-    requestId: req.requestId,
-    userId: req.user.id,
-    companyId,
-    decision: nextStatus,
-  });
-
-  const college = await prisma.college.findUnique({
-    where: { email: req.user.email },
-    select: {
-      id: true,
-      name: true,
-    },
-  });
-
-  if (!college) {
-    log.error("collabDecision college not found", {
-      requestId: req.requestId,
-      userId: req.user.id,
-    });
-    throw new ApiError(404, "no such college found");
-  }
-
-  const company = await prisma.company.findUnique({
-    where: { id: companyId },
-    select: {
-      name: true,
-      email: true,
-    },
-  });
-
-  if (!company) {
-    log.error("collabDecision company not found", {
-      requestId: req.requestId,
-      companyId,
-    });
-    throw new ApiError(404, "no such company found");
-  }
-
-  let occured = false;
-
-  await prisma.$transaction(async (tx) => {
-    const collabRequest = await tx.collab.findUnique({
-      where: {
-        collegeId_companyId: {
-          collegeId: college.id,
-          companyId,
-        },
-      },
-      select: {
-        id: true,
-        status: true,
-      },
-    });
-
-    if (!collabRequest) {
-      log.info("collabDecision collab request not found", {
-        requestId: req.requestId,
-        collegeId: college.id,
-        companyId,
-      });
-      throw new ApiError(404, "no such collab request found");
-    }
-
-    const currentStatus = collabRequest.status;
-
-    if (!canCollabTransition(currentStatus, nextStatus)) {
-      log.info("collabDecision invalid state transition", {
-        requestId: req.requestId,
-        collabId: collabRequest.id,
-        from: currentStatus,
-        to: nextStatus,
-      });
-      return;
-    }
-
-    const updated = await tx.collab.updateMany({
-      where: {
-        id: collabRequest.id,
-        status: currentStatus,
-      },
-      data: {
-        status: nextStatus,
-      },
-    });
-
-    if (updated.count === 1) {
-      occured = true;
-    }
-  });
-
-  if (occured) {
-    log.info("collabDecision status updated", {
-      requestId: req.requestId,
-      collegeId: college.id,
-      companyId,
-      status: nextStatus,
-    });
-
-    await emailQueue.add(
-      "collab-decision",
-      {
-        companyName: company.name,
-        collegeName: college.name,
-        status: nextStatus,
-        companyEmail: company.email,
-      },
-      emailOptions,
-    );
-
-    log.info("collabDecision email queued", {
-      requestId: req.requestId,
-      companyEmail: company.email,
-      status: nextStatus,
-    });
-
-    await redisConnection.incr(`company:${companyId}:version`);
-    await redisConnection.incr(`colleges:version`);
-    await redisConnection.incr(`college:${college.id}:collab:requests:version`);
-    await redisConnection.incr(`college:${college.id}:version`);
-
-    log.info("collabDecision cache invalidated", {
-      requestId: req.requestId,
-      collegeId: college.id,
-      companyId,
-    });
-  }
-
-  res.json(
-    new ApiResponse(200, nextStatus, `the collab request is ${nextStatus}`),
-  );
-});
-
-
 const resetPassword = asyncHandler(async (req, res) => {
   const { userEmail } = req.params;
 
@@ -1162,9 +1006,10 @@ const getAllCollabRequests = asyncHandler(async (req, res) => {
   let [collabRequests, totalRequests] = await prisma.$transaction([
     prisma.collab.findMany({
       where: {
-        collegeId: college.id,
-        status: status,
-      },
+    collegeId: college.id,
+    status,
+    initiatedBy: "company"
+},
       skip: skip,
       take: limit,
       orderBy: { createdAt: "desc" },
@@ -1814,7 +1659,6 @@ const getCollegeProfile = asyncHandler(async (req, res) => {
 
 export {
   createMentor,
-  collabDecision,
   resetPassword,
   jobApprovalDecision,
   assignMentor,

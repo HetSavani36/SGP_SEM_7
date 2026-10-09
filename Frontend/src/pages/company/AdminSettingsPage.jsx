@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { useOutletContext } from "react-router-dom";
+import GoogleConnectCard from "./GoogleConnectCard";
 
+<GoogleConnectCard />
 function CompanySettingsPage() {
   const { company: contextCompany } = useOutletContext() || {};
   const apiUrl = import.meta.env.VITE_API_URL;

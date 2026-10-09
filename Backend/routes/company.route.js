@@ -3,11 +3,9 @@ import { verifyJWT } from "../middlewares/auth.middleware.js";
 import authorizeRole from "../middlewares/authorizableRole.js";
 import {
   addSkill,
-  collabWithCollege,
   createEmployee,
   postJob,
   resetPassword,
-  makeStudentApplicationDecision,
   getEmployeesList,
   getEmployeeDetail,
   getAllColleges,
@@ -18,12 +16,12 @@ import {
   exportEmployees,
   getCompanyDetails,
   getApplicationsOverview,
-  getJobPipeline,
-  makeFinalDecision,
   getCompanyDashboard,
   editCompanyProfile,
 } from "../controllers/company.controller.js";
 import { rateLimitAddSkillForCompany, rateLimitCollabRequest, rateLimitCollegeDetailsForCompany, rateLimitCollegesForCompany, rateLimitCompanyResetPassword, rateLimitCreateEmployee, rateLimitEmployeeDetailsForCompany, rateLimitEmployeesForCompany, rateLimitExportEmployees, rateLimitJobDetailsForCompany, rateLimitJobsForCompany, rateLimitPostJob, rateLimitSkillsForCompany, rateLimitStudentApplicationDecisionForCompany } from "../middlewares/rateLimit.js";
+import { collabWithCollege, companyCollabDecision, getIncomingCollabInvites } from "../controllers/collab.controller.js";
+import { companyShortlistDecision, companyFinalDecision, getJobPipeline } from "../controllers/applicationFlow.controller.js";
 import { requestIdMiddleware } from "../middlewares/requestId.js";
 
 const router = Router();
@@ -33,12 +31,14 @@ router.use(requestIdMiddleware)
 
 router.post("/create/employee",authorizeRole("companyAdmin"),rateLimitCreateEmployee,createEmployee);
 router.post("/collab/:collegeId",authorizeRole("companyAdmin"),rateLimitCollabRequest,collabWithCollege);
+router.get("/collab/incoming",authorizeRole("companyAdmin"),getIncomingCollabInvites);              // NEW: invites sent by colleges
+router.post("/collab/respond/:collegeId",authorizeRole("companyAdmin"),companyCollabDecision);       // NEW: accept / reject a college invite
 router.post("/reset-password/:userEmail",authorizeRole("companyAdmin"),rateLimitCompanyResetPassword,resetPassword);
 
 router.post("/create/job",authorizeRole("companyAdmin"),rateLimitPostJob,postJob);
 router.post("/add/skill",authorizeRole("companyAdmin","employee"),rateLimitAddSkillForCompany,addSkill);
 
-router.post("/application/:applicationId",authorizeRole("companyAdmin","employee"),rateLimitStudentApplicationDecisionForCompany,makeStudentApplicationDecision);
+router.post("/application/:applicationId",authorizeRole("companyAdmin","employee"),rateLimitStudentApplicationDecisionForCompany,companyShortlistDecision);
 
 router.get("/export/employees",authorizeRole("companyAdmin"),rateLimitExportEmployees,exportEmployees);
 router.get("/employees",authorizeRole("companyAdmin"),rateLimitEmployeesForCompany,getEmployeesList);
@@ -55,7 +55,7 @@ router.get("/profile", authorizeRole("companyAdmin"),getCompanyDetails);
 // Add these with your other routes
 router.get("/applications/overview", authorizeRole("companyAdmin", "employee"), getApplicationsOverview);
 router.get("/applications/pipeline/:jobId", authorizeRole("companyAdmin", "employee"), getJobPipeline);
-router.post("/application/:applicationId/final", authorizeRole("companyAdmin", "employee"), makeFinalDecision);
+router.post("/application/:applicationId/final", authorizeRole("companyAdmin", "employee"), companyFinalDecision);
 
 router.get("/dashboard", authorizeRole("companyAdmin", "employee"), getCompanyDashboard);
 router.put("/profile", authorizeRole("companyAdmin"), editCompanyProfile);

@@ -1,8 +1,9 @@
 import { Router } from "express";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
 import authorizeRole from "../middlewares/authorizableRole.js";
-import { assignMentor, collabDecision, createMentor, editCollegeProfile, exportMentors, getAllCollabRequests, getAllJobRequests, getCollegeProfile, getCompanyDetails, getDashboardDetails, getJobDetails, getMentorsList, jobApprovalDecision, mentorDetails, resetPassword } from "../controllers/college.controller.js";
+import { assignMentor, createMentor, editCollegeProfile, exportMentors, getAllCollabRequests, getAllJobRequests, getCollegeProfile, getCompanyDetails, getDashboardDetails, getJobDetails, getMentorsList, jobApprovalDecision, mentorDetails, resetPassword } from "../controllers/college.controller.js";
 import { rateLimitAssignMentor, rateLimitCollabDecision, rateLimitCollabRequests, rateLimitCollegeMentorDetails, rateLimitCollegeMentors, rateLimitCollegeResetPassword, rateLimitCompanyDetailsForCollege, rateLimitCreateMentor, rateLimitExportMentors, rateLimitJobApprovalDecision, rateLimitJobDetailsForCollege, rateLimitJobRequestsForCollege } from "../middlewares/rateLimit.js";
+import { collabDecision, inviteCompany, getAllCompaniesForCollege } from "../controllers/collab.controller.js";
 import { requestIdMiddleware } from "../middlewares/requestId.js";
 
 const router = Router();
@@ -10,7 +11,9 @@ const router = Router();
 router.use(verifyJWT)
 router.use(requestIdMiddleware)
 router.post("/create/mentor",authorizeRole("collegeAdmin"),rateLimitCreateMentor,createMentor);
-router.post("/collab/request/:companyId",authorizeRole("collegeAdmin"),rateLimitCollabDecision,collabDecision);
+router.post("/collab/request/:companyId",authorizeRole("collegeAdmin"),rateLimitCollabDecision,collabDecision); // college answers a COMPANY request
+router.post("/collab/invite/:companyId",authorizeRole("collegeAdmin"),rateLimitCollabDecision,inviteCompany);   // NEW: college -> company
+router.get("/companies",authorizeRole("collegeAdmin"),getAllCompaniesForCollege);                                // NEW: browse companies
 router.post("/reset-password/:userEmail",authorizeRole("collegeAdmin"),rateLimitCollegeResetPassword,resetPassword);
 router.post("/job/:jobId/assign-mentor",authorizeRole("collegeAdmin"),rateLimitAssignMentor,assignMentor);
 router.post("/job/:jobId/:result",authorizeRole("collegeAdmin"),rateLimitJobApprovalDecision,jobApprovalDecision);

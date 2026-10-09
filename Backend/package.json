@@ -6,7 +6,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node index.js",
-    "dev":"nodemon index.js"
+    "dev": "nodemon index.js"
   },
   "prisma": {
     "seed": "node prisma/seed.js"
@@ -30,6 +30,7 @@
     "express": "^5.1.0",
     "express-rate-limit": "^8.1.0",
     "express-session": "^1.18.2",
+    "googleapis": "^183.0.0",
     "ioredis": "^5.8.2",
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.0.2",

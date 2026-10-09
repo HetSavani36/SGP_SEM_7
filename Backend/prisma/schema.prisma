@@ -177,6 +177,7 @@ model Job {
 
   applications Application[]
   jobSkills    JobSkill[]
+  aptitudeTest AptitudeTest?
 
   @@unique([companyId, collegeId, jobHash])
   @@index([companyId])
@@ -203,8 +204,9 @@ model Application {
   job     Job     @relation(fields: [jobId], references: [id])
   mentor  Mentor? @relation(fields: [mentorId], references: [id])
 
-  interview    Interview?
-  certificates Certificate[]
+  interview       Interview?
+  certificates    Certificate[]
+  aptitudeAttempt AptitudeAttempt?
 
   @@index([studentId])
   @@index([jobId])
@@ -218,29 +220,56 @@ enum ApprovalStatus {
   rejected
 }
 
+// pending     -> waiting (mentor review first, then company review)
+// shortlisted -> company liked the profile
+// aptitude    -> aptitude test assigned / in progress / waiting for company
+// interview   -> interview scheduled
 enum ApplicationStatus {
   pending
-  rejected
   shortlisted
+  aptitude
+  interview
   hired
+  rejected
 }
 
 model Interview {
-  id            String   @id @default(uuid())
-  studentId     String
-  employeeId    String
-  applicationId String   @unique
-  date          DateTime
-  time          String
-  address       String
-  selected      Boolean  @default(false)
+  id                String          @id @default(uuid())
+  applicationId     String          @unique
+  studentId         String
+  employeeId        String?
+  scheduledByUserId String
+  startsAt          DateTime
+  endsAt            DateTime
+  timeZone          String          @default("Asia/Kolkata")
+  mode              InterviewMode   @default(online)
+  meetLink          String?
+  address           String?
+  calendarEventId   String?
+  calendarOwnerId   String?
+  notes             String?
+  status            InterviewStatus @default(scheduled)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
 
   student     Student     @relation(fields: [studentId], references: [id])
-  employee    Employee    @relation(fields: [employeeId], references: [id])
+  employee    Employee?   @relation(fields: [employeeId], references: [id])
   application Application @relation(fields: [applicationId], references: [id])
 
   @@index([employeeId])
   @@index([studentId])
+  @@index([startsAt])
+}
+
+enum InterviewMode {
+  online
+  offline
+}
+
+enum InterviewStatus {
+  scheduled
+  completed
+  cancelled
 }
 
 model Certificate {
@@ -272,10 +301,11 @@ model Feedback {
 }
 
 model Collab {
-  id        String       @id @default(uuid())
-  collegeId String
-  companyId String
-  status    CollabStatus @default(pending)
+  id          String          @id @default(uuid())
+  collegeId   String
+  companyId   String
+  status      CollabStatus    @default(pending)
+  initiatedBy CollabInitiator @default(company)
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
 
@@ -283,6 +313,11 @@ model Collab {
   company Company @relation(fields: [companyId], references: [id])
 
   @@unique([collegeId, companyId]) // Prevent duplicate collaborations
+}
+
+enum CollabInitiator {
+  company
+  college
 }
 
 enum CollabStatus {
@@ -314,4 +349,85 @@ model IdempotencyKey {
   endpoint    String
   response    Json
   createdAt   DateTime @default(now())
+}
+
+
+/* ======================= GOOGLE CALENDAR / MEET ======================= */
+model GoogleCredential {
+  id           String   @id @default(uuid())
+  userId       String   @unique
+  googleEmail  String
+  refreshToken String // AES-256-GCM encrypted
+  scope        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+/* ======================= APTITUDE PLATFORM ======================= */
+model AptitudeTest {
+  id               String    @id @default(uuid())
+  jobId            String    @unique
+  companyId        String
+  title            String
+  instructions     String?
+  durationMins     Int       @default(30)
+  passingPercent   Int       @default(50)
+  negativeMarking  Float     @default(0) // fraction of marks cut per wrong answer, e.g. 0.25
+  autoRejectOnFail Boolean   @default(false)
+  opensAt          DateTime?
+  closesAt         DateTime?
+  isPublished      Boolean   @default(false)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  job       Job                @relation(fields: [jobId], references: [id])
+  questions AptitudeQuestion[]
+  attempts  AptitudeAttempt[]
+
+  @@index([companyId])
+}
+
+model AptitudeQuestion {
+  id           String  @id @default(uuid())
+  testId       String
+  text         String
+  options      Json // string[]
+  correctIndex Int
+  marks        Int     @default(1)
+  section      String? // Quant / Logical / Verbal ...
+  order        Int     @default(0)
+
+  test AptitudeTest @relation(fields: [testId], references: [id], onDelete: Cascade)
+
+  @@index([testId])
+}
+
+enum AttemptStatus {
+  in_progress
+  submitted
+  expired
+}
+
+model AptitudeAttempt {
+  id            String        @id @default(uuid())
+  testId        String
+  applicationId String        @unique
+  studentId     String
+  status        AttemptStatus @default(in_progress)
+  startedAt     DateTime      @default(now())
+  expiresAt     DateTime
+  submittedAt   DateTime?
+  answers       Json? // { [questionId]: optionIndex }
+  score         Float?
+  totalMarks    Int?
+  percent       Float?
+  passed        Boolean?
+  tabSwitches   Int           @default(0)
+
+  test        AptitudeTest @relation(fields: [testId], references: [id])
+  application Application  @relation(fields: [applicationId], references: [id])
+
+  @@index([testId])
+  @@index([studentId])
+  @@index([status, expiresAt])
 }

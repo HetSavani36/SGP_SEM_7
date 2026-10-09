@@ -2,12 +2,16 @@ import Redis from "ioredis";
 import dotenv from "dotenv";
 dotenv.config();
 
-export const redisConnection = new Redis(process.env.REDIS_URL,{
-  tls:{
-    rejectUnauthorized:false
-  },
-  family:4
+export const redisConnection = new Redis({
+  host: process.env.REDIS_HOST,
+  port: process.env.REDIS_PORT,
+  maxRetriesPerRequest: null,
 });
 
-redisConnection.on("connect", () => console.log("Connected to Upstash Redis!"));
-redisConnection.on("error", (err) => console.log("Redis error:", err));
+redisConnection.on("connect", () => {
+  console.log("Connected to Redis!");
+});
+
+redisConnection.on("error", (err) => {
+  console.error("Redis error:", err);
+});

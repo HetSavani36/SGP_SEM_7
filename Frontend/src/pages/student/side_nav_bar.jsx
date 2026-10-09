@@ -153,6 +153,18 @@ function SideNavBar() {
             <span className="nav-label">Applications</span>
           </NavLink>
 
+          
+          <NavLink to="/student/aptitude" className={navClass}>
+            <img src={listIcon} className="nav-icon" alt="" />
+            <span className="nav-label">Aptitude Tests</span>
+          </NavLink>
+
+          
+          <NavLink to="/student/interviews" className={navClass}>
+            <img src={listIcon} className="nav-icon" alt="" />
+            <span className="nav-label">Interviews</span>
+          </NavLink>
+
           <NavLink to="/student/mentor-approved" className={navClass}>
             <img src={gridIcon} className="nav-icon" alt="" />
             <span className="nav-label">Mentor Approved</span>

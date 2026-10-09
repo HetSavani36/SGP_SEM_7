@@ -136,6 +136,12 @@ function CollegeDashboardLayout() {
             <img src={listIcon} alt="" className="nav-icon" />
             <span className="nav-label">Students</span>
           </NavLink>
+          
+          <NavLink to="/college/companies" className={navClass}>
+            <img src={listIcon} alt="" className="nav-icon" />
+            <span className="nav-label">Companies</span>
+          </NavLink>
+
           <NavLink to="/college/collaboration" className={navClass}>
             <img src={gridIcon} alt="" className="nav-icon" />
             <span className="nav-label">Collaboration</span>

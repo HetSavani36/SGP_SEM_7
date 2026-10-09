@@ -141,134 +141,6 @@ const createEmployee = asyncHandler(async (req, res) => {
 });
 
 
-const collabWithCollege = asyncHandler(async (req, res) => {
-  log.info("request.start", {
-    action: "collabWithCollege",
-    actorId: req.user.id,
-    role: req.user.role,
-    collegeId: req.params.collegeId,
-    ip: req.ip,
-  });
-
-  const { collegeId } = req.params;
-  if (!collegeId) throw new ApiError(400, "please provide college id");
-
-  const company = await prisma.company.findUnique({
-    where: { email: req.user.email },
-    select: { id: true, name: true },
-  });
-  if (!company) throw new ApiError(404, "no such company found");
-
-  const college = await prisma.college.findUnique({
-    where: { id: collegeId },
-    select: { id: true, name: true, email: true },
-  });
-  if (!college) throw new ApiError(404, "no such college found");
-
-  let collabRequest;
-  let created = false;
-
-  await prisma.$transaction(async (tx) => {
-    const existing = await tx.collab.findUnique({
-      where: {
-        collegeId_companyId: {
-          collegeId,
-          companyId: company.id,
-        },
-      },
-      select: {
-        id: true,
-        createdAt: true,
-        collegeId: true,
-        companyId: true,
-        status: true,
-      },
-    });
-
-    if (existing) {
-      collabRequest = existing;
-
-      log.info("collab.already_exists", {
-        companyId: company.id,
-        collegeId,
-        collabId: existing.id,
-        status: existing.status,
-      });
-
-      return;
-    }
-
-    collabRequest = await tx.collab.create({
-      data: {
-        collegeId,
-        companyId: company.id,
-      },
-      select: {
-        id: true,
-        createdAt: true,
-        collegeId: true,
-        companyId: true,
-        status: true,
-      },
-    });
-
-    created = true;
-
-    log.info("collab.created", {
-      collabId: collabRequest.id,
-      companyId: company.id,
-      collegeId,
-    });
-  });
-
-  if (created) {
-    await emailQueue.add(
-      "collab-request",
-      {
-        collegeEmail: college.email,
-        collegeName: college.name,
-        companyName: company.name,
-      },
-      emailOptions,
-    );
-
-    log.info("side_effect.email_enqueued", {
-      action: "collabWithCollege",
-      queue: "collab-request",
-      collegeEmail: college.email,
-    });
-
-    await redisConnection.incr(`college:${college.id}:collab:requests:version`);
-    await redisConnection.incr(`colleges:version`);
-
-    log.info("side_effect.cache_invalidated", {
-      keys: [
-        `college:${college.id}:collab:requests:version`,
-        `colleges:version`,
-      ],
-    });
-  }
-
-  log.info("request.success", {
-    action: "collabWithCollege",
-    created,
-    collabId: collabRequest.id,
-    companyId: company.id,
-    collegeId,
-  });
-
-  res.json(
-    new ApiResponse(
-      201,
-      collabRequest,
-      created
-        ? "collaboration request sent successfully"
-        : "collaboration request already exists",
-    ),
-  );
-});
-
-
 
 const resetPassword = asyncHandler(async (req, res) => {
   log.info("request.start", {
@@ -640,152 +512,6 @@ const postJob = asyncHandler(async (req, res) => {
   );
 });
 
-
-
-const makeStudentApplicationDecision = asyncHandler(async (req, res) => {
-  log.info("request.start", {
-    action: "makeStudentApplicationDecision",
-    actorId: req.user.id,
-    role: req.user.role,
-    ip: req.ip,
-  });
-
-  const { applicationId } = req.params;
-  const { result } = req.body;
-
-  if (!applicationId || !result) {
-    throw new ApiError(403, "please provide studentId and your decision");
-  }
-  if (!["1", "0"].includes(result)) {
-    throw new ApiError(403, "please provide proper decision in either 0 or 1");
-  }
-
-  const nextStatus = result === "1" ? "shortlisted" : "rejected";
-  let application = null;
-  let occured = false;
-
-  log.info("makeDecision.input.validated", {
-    applicationId,
-    nextStatus,
-  });
-
-  await prisma.$transaction(async (tx) => {
-    const tempApplication = await tx.application.findUnique({
-      where: { id: applicationId },
-      select: {
-        id: true,
-        status: true,
-        student: {
-          select: {
-            user: {
-              select: {
-                name: true,
-                email: true,
-              },
-            },
-          },
-        },
-        job: {
-          select: {
-            id: true,
-            title: true,
-            company: {
-              select: {
-                name: true,
-              },
-            },
-          },
-        },
-      },
-    });
-
-    if (!tempApplication) {
-      throw new ApiError(404, "no such application found");
-    }
-
-    const currentStatus = tempApplication.status;
-
-    if (!canStudentApplicationTransition(currentStatus, nextStatus)) {
-      if (currentStatus === nextStatus) {
-        application = tempApplication;
-
-        log.info("makeDecision.noop", {
-          applicationId,
-          status: currentStatus,
-        });
-
-        return;
-      } else {
-        log.warn("makeDecision.invalid_transition", {
-          applicationId,
-          fromStatus: currentStatus,
-          toStatus: nextStatus,
-        });
-
-        throw new ApiError(
-          409,
-          `invalid job transition from ${currentStatus} to ${nextStatus}`,
-        );
-      }
-    }
-
-    const updated = await tx.application.updateMany({
-      where: { id: tempApplication.id, status: currentStatus },
-      data: { status: nextStatus },
-    });
-
-    if (updated.count === 1) {
-      occured = true;
-      application = {
-        ...updated,
-        status: nextStatus,
-      };
-
-      log.info("makeDecision.status.updated", {
-        applicationId,
-        fromStatus: currentStatus,
-        toStatus: nextStatus,
-      });
-    }
-  });
-
-  if (occured) {
-    await emailQueue.add(
-      "student-application-decision-company",
-      {
-        studentName: application.student.user.name,
-        companyName: application.job.company.name,
-        jobTitle: application.job.title,
-        status: nextStatus,
-        studentEmail: application.student.user.email,
-      },
-      emailOptions,
-    );
-
-    log.info("makeDecision.email.queued", {
-      applicationId,
-      jobId: application.job.id,
-      status: nextStatus,
-    });
-
-    await redisConnection.incr(`company:job:${application.job.id}:version`);
-
-    log.info("makeDecision.cache.invalidated", {
-      jobId: application.job.id,
-    });
-  }
-
-  log.info("request.success", {
-    action: "makeStudentApplicationDecision",
-    applicationId,
-    occured,
-    finalStatus: nextStatus,
-  });
-
-  res.json(
-    new ApiResponse(200, application, `the student has been ${nextStatus}`),
-  );
-});
 
 
 const getEmployeesList = asyncHandler(async (req, res) => {
@@ -1803,11 +1529,19 @@ const getApplicationsOverview = asyncHandler(async (req, res) => {
     };
 
     job.applications.forEach((app) => {
-      if (app.status === "pending") pipeline.newPending++;
-      else if (app.status === "shortlisted" && app.mentorApproval === "pending") pipeline.mentorReview++;
-      else if (app.status === "shortlisted" && app.mentorApproval === "approved") pipeline.interviewReady++;
-      else if (app.status === "hired") pipeline.hired++;
-      else if (app.status === "rejected" || app.mentorApproval === "rejected") pipeline.rejected++;
+      if (app.mentorApproval === "rejected" || app.status === "rejected") {
+        pipeline.rejected++;
+      } else if (app.mentorApproval === "pending") {
+        pipeline.mentorReview++;
+      } else if (app.status === "pending") {
+        pipeline.newPending++;
+      } else if (["shortlisted", "aptitude"].includes(app.status)) {
+        pipeline.interviewReady++;
+      } else if (app.status === "interview") {
+        pipeline.interviewReady++;
+      } else if (app.status === "hired") {
+        pipeline.hired++;
+      }
     });
 
     return {
@@ -1826,97 +1560,6 @@ const getApplicationsOverview = asyncHandler(async (req, res) => {
   res.json(new ApiResponse(200, overview, "Applications overview fetched"));
 });
 
-const getJobPipeline = asyncHandler(async (req, res) => {
-  const { jobId } = req.params;
-
-  const version = Number(await redisConnection.get(`company:job:pipeline:${jobId}:version`)) || 1;
-
-  const cacheKey = `company:job:pipeline:${jobId}:v${version}`;
-  const cached = await redisConnection.get(cacheKey);
-
-  if (cached) {
-    log.info("getJobPipeline cache hit", {
-      requestId: req.requestId,
-      jobId,
-      cacheKey,
-    });
-
-    return res.json(
-      new ApiResponse(200, JSON.parse(cached), "company job pipeline(cached)"),
-    );
-  }
-
-  const job = await prisma.job.findUnique({
-    where: { id: jobId },
-    select: {
-      id: true,
-      title: true,
-      dueDate: true, // 👈 ADD THIS
-      isApproved: true, // 👈 ADD THIS
-      status: true,
-      college: { select: { name: true } },
-      applications: {
-        orderBy: { appliedAt: "desc" },
-        select: {
-          id: true,
-          status: true,
-          mentorApproval: true,
-          appliedAt: true,
-          student: {
-            select: {
-              id: true,
-              branch: true,
-              year: true,
-              rollNo: true,
-              resume: true,
-              aboutMe: true,
-              user: { select: { name: true, email: true } },
-              skills: { select: { skill: { select: { name: true } } } },
-            },
-          },
-        },
-      },
-    },
-  });
-  if (!job) throw new ApiError(404, "Job not found");
-
-  await redisConnection.setex(cacheKey, 120, JSON.stringify(job));
-
-  res.json(new ApiResponse(200, job, "Job pipeline fetched"));
-});
-
-const makeFinalDecision = asyncHandler(async (req, res) => {
-  console.log('called');
-  
-  const { applicationId } = req.params;
-  const { result } = req.body; // "hire" or "reject"
-
-  if (!["hire", "reject"].includes(result)) {
-    throw new ApiError(400, "Result must be 'hire' or 'reject'");
-  }
-
-  const application = await prisma.application.findUnique({
-    where: { id: applicationId },
-    include: { student: { include: { user: true } }, job: { include: { company: true } } },
-  });
-
-  if (!application) throw new ApiError(404, "Application not found");
-
-  if (application.status !== "shortlisted" || application.mentorApproval !== "approved") {
-    throw new ApiError(400, "Student must be shortlisted and mentor-approved before final decision");
-  }
-
-  const nextStatus = result === "hire" ? "hired" : "rejected";
-
-  const updatedApp = await prisma.application.update({
-    where: { id: applicationId },
-    data: { status: nextStatus },
-  });
-
-  // Optional: Queue an email here telling the student they were hired/rejected
-
-  res.json(new ApiResponse(200, updatedApp, `Student has been ${nextStatus}`));
-});
 
 // Don't forget to export them at the bottom of the file!
 
@@ -2005,7 +1648,15 @@ const getCompanyDashboard = asyncHandler(async (req, res) => {
   ]);
 
   // Format the pipeline stats
-  const pipeline = { pending: 0, shortlisted: 0, hired: 0, rejected: 0, total: 0 };
+  const pipeline = {
+    pending: 0,
+    shortlisted: 0,
+    aptitude: 0,
+    interview: 0,
+    hired: 0,
+    rejected: 0,
+    total: 0,
+  };
   applicationsGrouping.forEach(group => {
     pipeline[group.status] = group._count.id;
     pipeline.total += group._count.id;
@@ -2090,11 +1741,9 @@ const editCompanyProfile = asyncHandler(async (req, res) => {
 
 export {
   createEmployee,
-  collabWithCollege,
   resetPassword,
   postJob,
   addSkill,
-  makeStudentApplicationDecision,
   getEmployeesList,
   getEmployeeDetail,
   getAllColleges,
@@ -2105,8 +1754,6 @@ export {
   exportEmployees,
   getCompanyDetails,
   getApplicationsOverview,
-  getJobPipeline,
-  makeFinalDecision,
   getCompanyDashboard,
   editCompanyProfile
 };

@@ -17,6 +17,15 @@ import {
   sendStudentMentorDecisionMail,
   sendStudentsCredentialsMail,
 } from "./email-handler.js";
+import {
+  sendCollabInviteMail,
+  sendCollabDecisionCollegeMail,
+  sendCollabAutoAcceptedMail,
+  sendAptitudeAssignedMail,
+  sendInterviewScheduledMail,
+  sendInterviewCancelledMail,
+  sendFinalDecisionMail,
+} from "./email-handler.v2.js";
 import { transporter } from "../utils/email-transporter.js";
 
 
@@ -68,7 +77,7 @@ const emailWorker = new Worker(
         break;
 
       case "collab-request":
-        await sendCollabRequestRecievedMail(data);
+        await sendCollabRequestRecievedMail({ ...data, collegEmail: data.collegeEmail }); // fixes collegEmail typo (mail was never delivered)
         break;
 
       case "post-job":
@@ -77,6 +86,7 @@ const emailWorker = new Worker(
 
       case "student-application-decision-company":
         await sendStudentApplicationDecisionMail(data);
+        if (data.aptitude) await sendAptitudeAssignedMail({ ...data, aptitude: data.aptitude });
         break;
 
       case "job-notification":
@@ -97,6 +107,30 @@ const emailWorker = new Worker(
 
       case "password-change":
         await sendPasswordChangeMail(data);
+        break;
+
+      case "collab-invite":
+        await sendCollabInviteMail(data);
+        break;
+
+      case "collab-decision-college":
+        await sendCollabDecisionCollegeMail(data);
+        break;
+
+      case "collab-decision-both":
+        await sendCollabAutoAcceptedMail(data);
+        break;
+
+      case "interview-scheduled":
+        await sendInterviewScheduledMail(data);
+        break;
+
+      case "interview-cancelled":
+        await sendInterviewCancelledMail(data);
+        break;
+
+      case "final-decision":
+        await sendFinalDecisionMail(data);
         break;
 
       default:

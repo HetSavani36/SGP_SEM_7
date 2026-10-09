@@ -51,6 +51,27 @@ function ApplicationsPage() {
       case "rejected": return <span style={{ ...style, backgroundColor: '#fee2e2', color: '#991b1b', border: '1px solid #fecaca' }}><FiXCircle size={14} /> Rejected</span>;
       case "shortlisted": return <span style={{ ...style, backgroundColor: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe' }}><FiStar size={14} /> Shortlisted</span>;
       case "pending": return <span style={{ ...style, backgroundColor: '#fefce8', color: '#854d0e', border: '1px solid #fef08a' }}><FiClock size={14} /> Pending</span>;
+      case "aptitude":
+    return (
+        <span style={{
+            ...style,
+            backgroundColor: '#f3e8ff',
+            color: '#6b21a8'
+        }}>
+            📝 Aptitude round
+        </span>
+    );
+
+case "interview":
+    return (
+        <span style={{
+            ...style,
+            backgroundColor: '#dbeafe',
+            color: '#1d4ed8'
+        }}>
+            📅 Interview
+        </span>
+    );
       default: return null;
     }
   };
